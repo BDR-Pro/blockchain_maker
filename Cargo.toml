@@ -6,9 +6,9 @@ description = "A blockchain implementation in Rust using the Elliptic-curve cryp
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/BDR-Pro/blockchain_maker"
-keywords = ["blockchain", "rust", "elliptic-curve", "cryptography", "sha-256", "hashing", "algorithm"]
+keywords = ["blockchain", "elliptic-curve", "cryptography", "sha-256", "hashing"]
 authors = ["BDR-Pro baderalotaibi3@gmail.com"]
-categories = ["cryptography", "blockchain", "elliptic-curve", "rust", "sha-256", "hashing", "algorithm"]
+categories = ["cryptography", "blockchain", "elliptic-curve", "sha-256", "hashing"]
 
 
 [dependencies]
