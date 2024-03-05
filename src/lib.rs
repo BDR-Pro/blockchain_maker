@@ -33,6 +33,8 @@ pub fn get_block_hash_from_file<P: AsRef<Path>>(path: P) -> Result<String, Box<d
 }
 
 pub fn count_files_in_folder<P: AsRef<Path>>(path: P) -> std::io::Result<usize> {
+
+
     let mut count = 0;
     for entry in fs::read_dir(path)? {
         let entry = entry?;
@@ -43,7 +45,7 @@ pub fn count_files_in_folder<P: AsRef<Path>>(path: P) -> std::io::Result<usize> 
     Ok(count)
 }
 
-pub fn sign(message: &str, reward:u64,block_number:u64) -> Vec<u8> {
+pub fn sign(message: &str, reward:u64,block_number:u64) -> (Vec<u8>, Vec<u8>){
     let group = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
     let ec_key = EcKey::generate(&group).unwrap();
     let pkey = PKey::from_ec_key(ec_key.clone()).unwrap();
@@ -57,6 +59,9 @@ pub fn sign(message: &str, reward:u64,block_number:u64) -> Vec<u8> {
     assert!(verifier.verify(&signature).unwrap());
 
     let private_key_pem = ec_key.private_key_to_pem().unwrap();
+    if !Path::new("my_keys").exists() {
+        let _ = fs::create_dir("my_keys").map_err(|_| "Failed to create directory");
+    }
     let dir_path = Path::new("my_keys");
     let file_path = dir_path.join(format!("private_key_{}_{}_{}.pem", Utc::now().timestamp(),reward,block_number));
 
@@ -69,8 +74,9 @@ pub fn sign(message: &str, reward:u64,block_number:u64) -> Vec<u8> {
 
     fs::write(&file_path, &private_key_pem).expect("Unable to save private key");
     println!("Signature and private key have been successfully generated and saved.");
-    signature;
-    pkey;
+
+    let public_key: Vec<u8> = pkey.public_key_to_pem().unwrap();
+    (signature, public_key)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -82,6 +88,7 @@ struct Block {
     block_number: u64,
     content_hash: String,
     signature: Vec<u8>,
+    public_key:  Vec<u8>,
     block_hash: String,
 }
 
@@ -92,7 +99,7 @@ impl Block {
         let mut hasher = Sha256::new();
         hasher.update(contents.as_bytes());
         let content_hash = format!("{:x}", hasher.finalize());
-        let ( signature , pkey ) = sign(&content_hash, reward, block_number);
+        let ( signature , public_key ) = sign(&content_hash, reward, block_number);
 
         let mut hasher_with_signature = Sha256::new();
         hasher_with_signature.update(format!("{}:{}", contents, &content_hash).as_bytes());
@@ -105,7 +112,7 @@ impl Block {
             reward,
             block_number,
             content_hash,
-            pkey,
+            public_key,
             signature,
             block_hash,
         })
@@ -113,21 +120,27 @@ impl Block {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Blockchain {
+pub struct Blockchain {
     chain: Vec<Block>,
 }
 
 impl Blockchain {
 
+    pub fn new() -> Blockchain {
+        Blockchain { chain: vec![] }
+    }
 
 
     pub fn calculate_reward(block_number: u64) -> u64 {
-        // Reward starts at 784 (28 * 28).
         // Shift the reward right by one (halve it) every 65536 blocks.
-        784 >> (block_number / 65536)
+        50 >> (block_number / 65536)
     }
 
     pub fn add_block(&mut self, data: String) -> Result<(), &'static str> {
+        //if folder is not created, create it
+        if !Path::new("my_blocks").exists() {
+            fs::create_dir("my_blocks").map_err(|_| "Failed to create directory")?;
+        }
         let mut block_number = count_files_in_folder("my_blocks").map_err(|_| "Failed to count files in folder")? as u64;
         block_number += 1;
         let previous_hash = get_block_hash_from_file(Path::new("my_blocks").join(format!("{}.json", block_number - 1))).map_err(|_| "Failed to read previous block hash from file")?;
@@ -156,35 +169,61 @@ impl Blockchain {
         Ok(())
     }
 
-    pub fn validate_chain(&self) -> bool {
+
+    pub fn validate_chain(&self,path:String) -> bool {
+        let count: Result<usize, std::io::Error> = count_files_in_folder(path);
+        if count.is_err() {
+            return false;
+        }
+        if count.unwrap() == 0 {
+            return true;
+        }
+
         for (i, block) in self.chain.iter().enumerate().skip(1) {
+            // Check that the previous hash matches
             if block.previous_hash != self.chain[i - 1].block_hash {
                 return false;
             }
+    
+            // Reconstruct the content hash to validate it
             let contents = format!("{}:{}:{}:{}:{}", block.timestamp, block.data, block.previous_hash, block.block_number, block.reward);
             let mut hasher = Sha256::new();
             hasher.update(contents.as_bytes());
             let content_hash = format!("{:x}", hasher.finalize());
+            
+            // Validate the content hash
             if content_hash != block.content_hash {
                 return false;
             }
-            try{
-
-                let mut verifier = Verifier::new(openssl::hash::MessageDigest::sha256(), &block.pkey).unwrap();
-                verifier.update(block.content_hash.as_bytes()).unwrap();
-                assert!(verifier.verify(&block.signature).unwrap());
+    
+            // Extract and validate the public key from PEM format safely
+            match PKey::public_key_from_pem(&block.public_key) {
+                Ok(public_key) => {
+                    let mut verifier = match Verifier::new(openssl::hash::MessageDigest::sha256(), &public_key) {
+                        Ok(ver) => ver,
+                        Err(_) => return false,
+                    };
+                    verifier.update(block.content_hash.as_bytes()).ok();  // Safely handle errors
+                    if !verifier.verify(&block.signature).unwrap_or(false) {  // Safely handle verification
+                        return false;
+                    }
+                },
+                Err(_) => return false,
             }
-
         }
+    
+        // If all blocks are valid
         println!("Chain is valid");
         true
     }
+
+
     // Assuming Block and Blockchain are defined elsewhere
     pub fn load_chain_from_disk(file_path:String) -> Result<Blockchain, &'static str> {
         let mut chain = Vec::new(); // Use Vec::new() for type inference
         let mut i = 1;
         loop {
-            let file_path = Path::new(file_path).join(format!("{}.json", i));
+            let file_path = Path::new(&file_path).join(format!("{}.json", i));
             if !file_path.exists() {
                 break; // Exit loop if file doesn't exist
             }
