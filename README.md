@@ -51,10 +51,13 @@ Counts the files in a specified directory, aiding in block management.
 
 Generates a digital signature for a given message using ECDSA.
 
-- **Parameters**: 
-    - `message: &str` - The message to sign.
-    - `reward: u64` - The mining reward.
-    - `block_number: u64` - The number of the block.
+- **Parameters**
+
+    1- `message: &str` - The message to sign.
+
+    2- `reward: u64` - The mining reward.
+
+    3- `block_number: u64` - The number of the block.
 - **Returns**: A tuple containing the signature and public key.
 
 ## Structures 🏗
@@ -74,29 +77,43 @@ Manages the chain of blocks, providing methods for adding `new blocks, validatin
 Here's how you can utilize our package to create and manage a blockchain:
 
 ```rust
-fn main() {
-    let mut blockchain: Blockchain = Blockchain::new();
+use blockchain_maker::Blockchain;
+use blockchain_maker::count_files_in_folder;
 
-    // Load the blockchain from disk (if available)
-    match Blockchain::load_chain_from_disk("my_blocks".to_string()) {
-        Ok(chain) => blockchain = chain,
-        Err(e) => println!("Failed to load chain from disk: {}", e),
+fn main() {
+    // Attempt to load the blockchain from disk
+    let mut blockchain: Blockchain = match Blockchain::load_chain_from_disk("my_blocks".to_string()) {
+        Ok(chain) => chain,
+        Err(e) => {
+            // Handle the error e.g., by logging or creating a new, empty blockchain
+            println!("Failed to load chain from disk, error: {}", e);
+            // Potentially initialize a new, empty blockchain here if desired
+            Blockchain::new() // This assumes you have a `new` method to create an empty blockchain
+        },
     };
 
-    // Validate the blockchain
+    // Validate the loaded or new blockchain
     if blockchain.validate_chain("my_blocks".to_string()) {
         println!("Blockchain validated successfully.");
     } else {
         println!("Blockchain validation failed.");
     }
 
-    // Add new blocks
-    blockchain.add_block("Block 1 Transactions Data".to_string()).expect("Failed to add block");
-    blockchain.add_block("Block 2 Transactions Data".to_string()).expect("Failed to add block");
+    // Add new blocks to the blockchain
+    if let Err(e) = blockchain.add_block("Block 1 Transactions Data".to_string()) {
+        println!("Failed to add block: {}", e);
+    }
 
-    // Print the current size of the blockchain
-    println!("Current blockchain size: {}", blockchain.chain.len());
+    if let Err(e) = blockchain.add_block("Block 2 Transactions Data".to_string()) {
+        println!("Failed to add block: {}", e);
+    }
+
+    // Print out the current state of the blockchain or other relevant information
+    // This might involve iterating over the blocks and printing them out, 
+    // or simply printing out the number of blocks in the chain
+    println!("Current blockchain size: {}", count_files_in_folder("my_blocks".to_string()).unwrap());
 }
+
 ```
 
 This example demonstrates loading a blockchain from disk, validating it, adding new blocks, and displaying the blockchain size.
