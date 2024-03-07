@@ -118,6 +118,19 @@ fn main() {
 
 This example demonstrates loading a blockchain from disk, validating it, adding new blocks, and displaying the blockchain size.
 
+## Update 1.1.0 🚀
+
+Now you can chooes initial reward for the first block in the blockchain.
+plus when the halving will happen.
+
+```rust
+    pub struct Blockchain {
+    chain: Vec<Block>,
+    get_reward: u64,
+    get_halving_interval: u64,
+}
+```
+
 ## Contribution and Support 🤝
 
 Contributions are welcome! If you'd like to contribute or have found bugs, please open an issue or pull request on our GitHub repository. For support, feel free to reach out via our support channels.

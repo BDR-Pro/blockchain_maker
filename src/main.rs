@@ -3,13 +3,14 @@ use blockchain_maker::count_files_in_folder;
 
 fn main() {
     // Attempt to load the blockchain from disk
-    let mut blockchain: Blockchain = match Blockchain::load_chain_from_disk("my_blocks".to_string()) {
+    let mut blockchain: Blockchain = match Blockchain::load_chain_from_disk("my_blocks".to_string()
+, 50, 210_000) {
         Ok(chain) => chain,
         Err(e) => {
             // Handle the error e.g., by logging or creating a new, empty blockchain
             println!("Failed to load chain from disk, error: {}", e);
             // Potentially initialize a new, empty blockchain here if desired
-            Blockchain::new() // This assumes you have a `new` method to create an empty blockchain
+            Blockchain::new(50,210_000) // This assumes you have a `new` method to create an empty blockchain
         },
     };
 

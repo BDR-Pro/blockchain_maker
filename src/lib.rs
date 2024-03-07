@@ -122,18 +122,26 @@ impl Block {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Blockchain {
     chain: Vec<Block>,
+    get_reward: u64,
+    get_halving_interval: u64,
 }
 
 impl Blockchain {
 
-    pub fn new() -> Blockchain {
-        Blockchain { chain: vec![] }
+
+
+    pub fn new(reward:u64,halving:u64) -> Blockchain {
+        Blockchain { 
+            chain: vec![],
+            get_reward: reward,
+            get_halving_interval: halving,
+         }
     }
 
 
-    pub fn calculate_reward(block_number: u64) -> u64 {
+    pub fn calculate_reward(&self , block_number: u64) -> u64 {
         // Shift the reward right by one (halve it) every 65536 blocks.
-        50 >> (block_number / 65536)
+        self.get_reward >> (block_number / self.get_halving_interval)
     }
 
     pub fn add_block(&mut self, data: String) -> Result<(), &'static str> {
@@ -144,7 +152,7 @@ impl Blockchain {
         let mut block_number = count_files_in_folder("my_blocks").map_err(|_| "Failed to count files in folder")? as u64;
         block_number += 1;
         let previous_hash = get_block_hash_from_file(Path::new("my_blocks").join(format!("{}.json", block_number - 1))).map_err(|_| "Failed to read previous block hash from file")?;
-        let reward = Self::calculate_reward(block_number);
+        let reward = Self::calculate_reward(self,block_number);
         let new_block = Block::new(data, previous_hash, block_number, reward)?;
     
         // Here, directly handle the Result returned by serde_json::to_string
@@ -219,7 +227,7 @@ impl Blockchain {
 
 
     // Assuming Block and Blockchain are defined elsewhere
-    pub fn load_chain_from_disk(file_path:String) -> Result<Blockchain, &'static str> {
+    pub fn load_chain_from_disk(file_path:String,get_reward: u64 , get_halving_interval: u64) -> Result<Blockchain, &'static str> {
         let mut chain = Vec::new(); // Use Vec::new() for type inference
         let mut i = 1;
         loop {
@@ -240,7 +248,7 @@ impl Blockchain {
             return Err("No blocks found on disk");
         }
         println!("Chain length: {}", chain.len());
-        Ok(Blockchain { chain }) // Return the loaded blockchain
+        Ok(Blockchain { chain , get_reward , get_halving_interval}) // Return the loaded blockchain
     }
 }
 
